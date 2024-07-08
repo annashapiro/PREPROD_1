@@ -1,0 +1,463 @@
+---
+title: "lextale"
+format: html
+editor: visual
+---
+
+```{r echo = FALSE, warning = FALSE, conflicts = FALSE}
+library(readxl)
+library(tidyverse)
+library(gdata) # to combine data frames with a column indicating source
+library(xlsx) # write.csv but into Excel
+library(kableExtra) # for nice tables
+library(lme4)
+library(sjPlot)
+library(lmerTest) #lmer pvalues
+```
+
+# Lextale for Cloze test
+
+## 1) Import data
+
+Column key:
+
+-   ID = Participant Public ID
+
+-   Absolute and non-absolute RT columns are equivalent
+
+-   Response = Tag
+
+-   Spreadsheet: Answer = correct response for the given word/nonword
+
+```{r warning = FALSE}
+# Group A: Prolific (29 + 12 - 5 -> 36)
+sp_prolific_1 <- read_excel('C:/Users/annas/OneDrive/Desktop/BCBL/LexTALESP_GroupA_Prolific_Session1.xlsx')
+sp_prolific_2 <- read_excel('C:/Users/annas/OneDrive/Desktop/BCBL/LexTALESP_GroupA_Prolific_Session2.xlsx')
+
+# (13 + 25 - 5 -> 33)
+fr_prolific_1 <- read_excel('C:/Users/annas/OneDrive/Desktop/BCBL/LexTALEFR_GroupA_Prolific_Session1.xlsx')
+fr_prolific_2 <- read_excel('C:/Users/annas/OneDrive/Desktop/BCBL/LexTALEFR_GroupA_Prolific_Session2.xlsx')
+
+
+# Group A: Participa
+# (9 + 16)
+sp_participa_1 <- read_excel('C:/Users/annas/OneDrive/Desktop/BCBL/LexTALESP_GroupA_Participa_Session1.xlsx')
+sp_participa_2 <- read_excel('C:/Users/annas/OneDrive/Desktop/BCBL/LexTALESP_GroupA_Participa_Session2.xlsx')
+
+# (16 + 6)
+fr_participa_1 <- read_excel('C:/Users/annas/OneDrive/Desktop/BCBL/LexTALEFR_GroupA_Participa_Session1.xlsx')
+fr_participa_2 <- read_excel('C:/Users/annas/OneDrive/Desktop/BCBL/LexTALEFR_GroupA_Participa_Session2.xlsx')
+
+
+# 17.04
+# (2 + 2)
+fr_participanew_1 <- read_excel('C:/Users/annas/OneDrive/Desktop/BCBL/LexTALEFR_GroupA_ParticipaNew_Session1.xlsx')
+fr_participanew_2 <- read_excel('C:/Users/annas/OneDrive/Desktop/BCBL/LexTALEFR_GroupA_ParticipaNew_Session2.xlsx')
+
+# (5 + 2)
+sp_participanew_1 <- read_excel('C:/Users/annas/OneDrive/Desktop/BCBL/LexTALESP_GroupA_ParticipaNew_Session1.xlsx')
+sp_participanew_2 <- read_excel('C:/Users/annas/OneDrive/Desktop/BCBL/LexTALESP_GroupA_ParticipaNew_Session2.xlsx')
+
+# (2 + 8)
+sp_participareplace_1 <- read_excel('C:/Users/annas/OneDrive/Desktop/BCBL/LexTALESP_GroupA_Replacements_Session1.xlsx')
+sp_participareplace_2 <- read_excel('C:/Users/annas/OneDrive/Desktop/BCBL/LexTALESP_GroupA_Replacements_Session2.xlsx')
+
+# (10 + 3)
+fr_participareplace_1 <- read_excel('C:/Users/annas/OneDrive/Desktop/BCBL/LexTALEFR_GroupA_Replacements_Session1.xlsx')
+fr_participareplace_2 <- read_excel('C:/Users/annas/OneDrive/Desktop/BCBL/LexTALEFR_GroupA_Replacements_Session2.xlsx')
+
+
+# Group B: Spanish monolinguals
+# (58 + 4 - 6 -> 56)
+spanish_monoling <- read_excel('C:/Users/annas/OneDrive/Desktop/BCBL/LexTALESP_GroupB.xlsx')
+
+spanish_pilot <- read_excel('C:/Users/annas/OneDrive/Desktop/BCBL/LexTALESP_GroupB_Pilot.xlsx')
+
+# Group C: French monolinguals
+# (55 + 7 - 9 -> 53)
+french_monoling <- read_excel('C:/Users/annas/OneDrive/Desktop/BCBL/LexTALEFR_GroupC.xlsx')
+
+french_pilot <- read_excel('C:/Users/annas/OneDrive/Desktop/BCBL/LexTALEFR_GroupC_Pilot.xlsx')
+```
+
+## 2) Preprocessing
+
+### 2.1 Function
+
+```{r}
+# Only keep relevant columns + RT times for exploratory analysis
+
+# 2.1 Function
+preprocess <- function(df) {
+  df %>% select('Participant Public ID', 'Reaction Time', 'Tag', 'Spreadsheet: display', 'Spreadsheet: Answer', 'Spreadsheet: Word') %>%
+    rename(condition = 'Spreadsheet: display',
+           response = 'Tag',
+           correct = 'Spreadsheet: Answer',
+           word = 'Spreadsheet: Word') %>%
+    filter(condition == "Test") %>%
+    select(-condition)
+}
+```
+
+### 2.2 Function calls
+
+```{r}
+sp_prolific_1 <- preprocess(sp_prolific_1)
+sp_prolific_2 <- preprocess(sp_prolific_2)
+
+sp_participa_1 <- preprocess(sp_participa_1)
+sp_participa_2 <- preprocess(sp_participa_2)
+
+fr_prolific_1 <- preprocess(fr_prolific_1)
+fr_prolific_2 <- preprocess(fr_prolific_2)
+
+fr_participa_1 <- preprocess(fr_participa_1)
+fr_participa_2 <- preprocess(fr_participa_2)
+
+fr_participanew_1 <- preprocess(fr_participanew_1)
+fr_participanew_2 <- preprocess(fr_participanew_2)
+sp_participanew_1 <- preprocess(sp_participanew_1)
+sp_participanew_2 <- preprocess(sp_participanew_2)
+
+sp_groupB <- preprocess(spanish_monoling)
+sp_groupB_pilot <- preprocess(spanish_pilot)
+fr_groupC <- preprocess(french_monoling)
+fr_groupC_pilot <- preprocess(french_pilot)
+
+fr_participareplace_1 <- preprocess(fr_participareplace_1)
+fr_participareplace_2 <- preprocess(fr_participareplace_2)
+sp_participareplace_1 <- preprocess(sp_participareplace_1)
+sp_participareplace_2 <- preprocess(sp_participareplace_2)
+
+# Join the files with 2 sessions (Group A)
+sp_groupA_prolific <- rbind(sp_prolific_1, sp_prolific_2)
+fr_groupA_prolific <- rbind(fr_prolific_1, fr_prolific_2)
+
+sp_groupA_participa <- rbind(sp_participa_1, sp_participa_2)
+fr_groupA_participa <- rbind(fr_participa_1, fr_participa_2)
+
+fr_groupA_participanew <- rbind(fr_participanew_1, fr_participanew_2)
+sp_groupA_participanew <- rbind(sp_participanew_1, sp_participanew_2)
+
+sp_groupA_participareplace <- rbind(sp_participareplace_1, sp_participareplace_2)
+fr_groupA_participareplace <- rbind(fr_participareplace_1, fr_participareplace_2)
+```
+
+### 2.3 Participant removal
+```{r}
+# Remove participants who didn't do Session 2 (only for Group A Prolific)
+sp_groupA_prolific <- sp_groupA_prolific %>%
+  filter(`Participant Public ID` != '5a5d3068ac562400015406c3' &
+                            `Participant Public ID` != '5f4813b2b7e5b32a618caf42' &
+                            `Participant Public ID` != '608fe3f882b7304fde1e2fcb' &
+                            `Participant Public ID` != '60d72f5d303cda94d4908dc6' &
+                            `Participant Public ID` != '610401b0cc07d6f622b6c4e7')
+
+fr_groupA_prolific <- fr_groupA_prolific %>%
+  filter(`Participant Public ID` != '5a5d3068ac562400015406c3' &
+                            `Participant Public ID` != '5f4813b2b7e5b32a618caf42' &
+                            `Participant Public ID` != '608fe3f882b7304fde1e2fcb' &
+                            `Participant Public ID` != '60d72f5d303cda94d4908dc6' &
+                            `Participant Public ID` != '610401b0cc07d6f622b6c4e7')
+
+# Remove participants for the monolinguals 
+sp_groupB <- sp_groupB %>%
+  filter(`Participant Public ID` != '5c375c4cb370d2000144e00b' &
+                            `Participant Public ID` != '5f9a81bdf0617319407b124c' &
+                            `Participant Public ID` != '5d5d5ab72cdbc90001ea8ab8' &
+                            `Participant Public ID` != '6005acab3eb3ff531095a020' &
+                            `Participant Public ID` != '5bf5e3784945af0001645857' &
+                            `Participant Public ID` != '5d1547d9db7eb7001af1a436')
+
+fr_groupC <- fr_groupC %>%
+  filter(`Participant Public ID` != '5f8f52ffd211991aba7ecd1f' &
+                            `Participant Public ID` != '5eef59b8c506f502aafee922' &
+                            `Participant Public ID` != '5f1bf7bb9f48184274051108' &
+                            `Participant Public ID` != '5df147eed7bcba000e1ff211' &
+                            `Participant Public ID` != '5ef2327d171a7d05e132c6ca' &
+                            `Participant Public ID` != '5d164f9b1a4be700176367bd' &
+                            `Participant Public ID` != '602fd43a4bcf02d4aac8ef3c' &
+                            `Participant Public ID` != '610c1ed890c222955b821aa4' &
+                            `Participant Public ID` != '651abf17863e385a9c2cc6d8')
+```
+
+### 2.4 Code responses
+```{r}
+code_responses <- function(df) {
+  df %>% mutate(
+    lextale = case_when(
+    correct == 1 & (response == 1 | response == "Oui" | response == "Si") ~ 1,
+    correct == 0 & (response == 0 | response == "Non" | response == "No") ~ 0,
+    .default = NA
+  ))
+}
+
+sp_groupA_prolific <- code_responses(sp_groupA_prolific)
+fr_groupA_prolific <- code_responses(fr_groupA_prolific)
+sp_groupA_participa <- code_responses(sp_groupA_participa)
+fr_groupA_participa <- code_responses(fr_groupA_participa)
+sp_groupB <- code_responses(sp_groupB)
+sp_groupB_pilot  <- code_responses(sp_groupB_pilot)
+fr_groupC <- code_responses(fr_groupC)
+fr_groupC_pilot  <- code_responses(fr_groupC_pilot)
+
+fr_groupA_participanew <- code_responses(fr_groupA_participanew)
+sp_groupA_participanew <- code_responses(sp_groupA_participanew)
+
+fr_groupA_participareplace <- code_responses(fr_groupA_participareplace)
+sp_groupA_participareplace <- code_responses(sp_groupA_participareplace)
+```
+
+## 3) Formula
+
+```{r}
+spanish_words <- 60
+french_words <- 56
+spanish_nonwords <- 30
+french_nonwords <- 28
+ 
+calculate_lextale <- function(df, words, nonwords) {
+   as.data.frame(table(df$`Participant Public ID`, df$lextale), stringsAsFactors = FALSE) %>%
+   rename(ID = 'Var1',
+         Lextale = 'Var2') %>%
+     pivot_wider(names_from = Lextale, values_from = Freq) %>%
+   rename(Words = '1',
+          Nonwords = '0') %>%
+   rowwise(ID) %>%
+   mutate(score = ((Words/words)*100 + (Nonwords/nonwords)*100)/2)
+ 
+ }
+```
+
+## 4) *Results
+
+```{r}
+# DON'T RUN THIS IF WANT TO DO REACTION TIMES
+# Group A
+sp_groupA_prolific <- calculate_lextale(sp_groupA_prolific, spanish_words, spanish_nonwords)
+fr_groupA_prolific <- calculate_lextale(fr_groupA_prolific, french_words, french_nonwords)
+
+sp_groupA_participa <- calculate_lextale(sp_groupA_participa, spanish_words, spanish_nonwords)
+fr_groupA_participa <- calculate_lextale(fr_groupA_participa, french_words, french_nonwords)
+
+sp_groupA_participanew <- calculate_lextale(sp_groupA_participanew, spanish_words, spanish_nonwords)
+fr_groupA_participanew <- calculate_lextale(fr_groupA_participanew, french_words, french_nonwords)
+
+sp_groupA_participareplace <- calculate_lextale(sp_groupA_participareplace, spanish_words, spanish_nonwords)
+fr_groupA_participareplace <- calculate_lextale(fr_groupA_participareplace, french_words, french_nonwords)
+
+# Combine all Group A Frenchies for later
+bilinguals_fr_lextale <- combine(fr_groupA_prolific, fr_groupA_participa, fr_groupA_participanew, fr_groupA_participareplace)
+
+# Group B
+sp_groupB <- calculate_lextale(sp_groupB, spanish_words, spanish_nonwords)
+sp_groupB_pilot <- calculate_lextale(sp_groupB_pilot, spanish_words, spanish_nonwords)
+
+# Group C
+fr_groupC <- calculate_lextale(fr_groupC, french_words, french_nonwords)
+fr_groupC_pilot <- calculate_lextale(fr_groupC_pilot, french_words, french_nonwords)
+```
+
+## 5) *Combine all scores
+
+```{r}
+# DON'T RUN THIS IF WANT TO DO REACTION TIMES
+lextale <- combine(sp_groupA_prolific, fr_groupA_prolific, sp_groupA_participa, fr_groupA_participa, sp_groupA_participanew, fr_groupA_participanew, sp_groupA_participareplace, fr_groupA_participareplace, sp_groupB, sp_groupB_pilot, fr_groupC, fr_groupC_pilot)
+
+write.xlsx(x = lextale, file = "C:/Users/annas/OneDrive/Desktop/BCBL/lextale_scores.xlsx")
+```
+
+## 6) LexTALE analysis
+
+### 6.1 Merge data
+
+```{r}
+# 1) Merge all the bilingual batches into one for French and one for Spanish
+# sp_groupA_prolific sp_groupA_participa sp_groupA_participanew sp_groupA_participareplace
+
+bilinguals_sp <- combine(sp_groupA_prolific, sp_groupA_participa, sp_groupA_participanew, sp_groupA_participareplace)
+
+bilinguals_fr <- combine(fr_groupA_prolific, fr_groupA_participa, fr_groupA_participanew, fr_groupA_participareplace)
+
+# 2) Merge the monolingual batches into one for French and one for Spanish
+monolinguals_sp <- combine(sp_groupB, sp_groupB_pilot)
+
+monolinguals_fr <- combine(fr_groupC, fr_groupC_pilot)
+```
+
+### 6.2 Dist plot
+
+```{r}
+# Density plot - all answers
+ggpubr::ggarrange(
+ggplot(bilinguals_sp, aes(x = scale(Reaction.Time))) +
+  geom_density(color = "#e56565") +
+  xlab("RT (zscore)") +
+  ggtitle("Bilinguals - Spanish"),
+
+ggplot(monolinguals_sp, aes(x = scale(Reaction.Time))) +
+  geom_density(color = "#f8bc4c") +
+    xlab("RT (zscore)") +
+  ggtitle("Monolinguals - Spanish"),
+
+ggplot(bilinguals_fr, aes(x = scale(Reaction.Time))) +
+  geom_density(color = "#ddd75a") +
+  xlab("RT (zscore)") +
+  ggtitle("Bilinguals - French"),
+
+ggplot(monolinguals_fr, aes(x = scale(Reaction.Time))) +
+  geom_density(color = "#75b200") +
+  xlab("RT (zscore)") +
+  ggtitle("Monolinguals - French")
+)
+```
+
+### 6.3 Summary stats
+
+```{r}
+rt_df <- data.frame(Group = character(),
+                     Min = numeric(),
+                     Mean = numeric(),
+                     Max = numeric(),
+                    SD = numeric())
+
+rt_df[1,] <- list('Bilinguals - Spanish', min(bilinguals_sp$Reaction.Time), mean(bilinguals_sp$Reaction.Time), max(bilinguals_sp$Reaction.Time), sd(bilinguals_sp$Reaction.Time))
+rt_df[2,] <- list('Monolinguals - Spanish', min(monolinguals_sp$Reaction.Time), mean(monolinguals_sp$Reaction.Time), max(monolinguals_sp$Reaction.Time), sd(monolinguals_sp$Reaction.Time))
+rt_df[3,] <- list('Bilinguals - French', min(bilinguals_fr$Reaction.Time), mean(bilinguals_fr$Reaction.Time), max(bilinguals_fr$Reaction.Time), sd(bilinguals_fr$Reaction.Time))
+rt_df[4,] <- list('Monolinguals - French', min(monolinguals_fr$Reaction.Time), mean(monolinguals_fr$Reaction.Time), max(monolinguals_fr$Reaction.Time), sd(monolinguals_fr$Reaction.Time))
+
+rt_df %>% kable() %>% kable_styling()
+```
+
+### 6.4 Models
+
+#### 6.4.1 Monoling
+```{r}
+# Combine the data frames
+monolinguals <- combine(monolinguals_fr, monolinguals_sp) %>% select(-source) %>% rename(source = source.1)
+# Model
+mono_model <- lmer(Reaction.Time ~ source + correct + (1 | Participant.Public.ID), data = monolinguals)
+drop1(mono_model, test = "Chisq") # Significant for <correct> only
+summary(mono_model)
+```
+#### 6.4.2 Bi vs mono - French
+```{r}
+# Combine the data frames
+frenchies <- combine(monolinguals_fr, bilinguals_fr) %>% select(-source) %>% rename(source = source.1)
+# Model
+frenchie_model <- lmer(Reaction.Time ~ source + correct + (1 | Participant.Public.ID), data = frenchies)
+summary(frenchie_model)
+drop1(frenchie_model, test = "Chisq")
+```
+#### 6.4.3 Word vs nonword - for all
+```{r}
+# Combine data
+all <- combine(monolinguals_fr, bilinguals_fr, monolinguals_sp, bilinguals_sp) %>% select(-source) %>% rename(source = source.1)
+
+all$lingual <- ifelse(grepl("^monolinguals_", all$source), "mono", "bi")
+all$language <- ifelse(grepl("_sp", all$source), "sp", "fr")
+# Model
+all_model <- lmer(Reaction.Time ~ correct + lingual + language + (1 | Participant.Public.ID), data = all)
+drop1(all_model, test = "Chisq")
+```
+#### 6.4.4 Word vs nonword per group: plot
+
+```{r}
+# Plot 1: Bi vs mono French, plot 2: mono vs mono Sp vs Fr
+ggpubr::ggarrange(
+
+ggplot(monolinguals_fr, aes(x = factor(correct), y = Reaction.Time, fill = factor(correct))) +
+  geom_boxplot() +
+  scale_y_continuous(limits = c(0,9000)) +
+  labs(x = element_blank(), y = "Reaction Time (ms)") +
+  scale_x_discrete(labels=c("0" = "Nonword", "1" = "Word")) +
+  ggtitle("French monolinguals"),
+
+ggplot(monolinguals_sp, aes(x = factor(correct), y = Reaction.Time, fill = factor(correct))) +
+  geom_boxplot() +
+  scale_y_continuous(limits = c(0,9000)) +
+  labs(x = element_blank(), y = "Reaction Time (ms)") +
+  scale_x_discrete(labels=c("0" = "Nonword", "1" = "Word")) +
+  ggtitle("Spanish monolinguals"),
+
+legend = "none"
+)
+```
+
+```{r}
+ggpubr::ggarrange(
+ggplot(monolinguals_fr, aes(x = factor(correct), y = Reaction.Time, fill = factor(correct))) +
+  geom_boxplot() +
+  scale_y_continuous(limits = c(0,9000)) +
+  labs(x = element_blank(), y = "Reaction Time (ms)") +
+  scale_x_discrete(labels=c("0" = "Nonword", "1" = "Word")) +
+  ggtitle("French monolinguals"),
+
+ggplot(bilinguals_fr, aes(x = factor(correct), y = Reaction.Time, fill = factor(correct))) +
+  geom_boxplot() +
+  scale_y_continuous(limits = c(0,9000)) +
+  labs(x = element_blank(), y = "Reaction Time (ms)") +
+  scale_x_discrete(labels=c("0" = "Nonword", "1" = "Word")) +
+  ggtitle("French bilinguals"),
+
+legend = "none"
+)
+```
+
+### 6.5 Interaction
+```{r}
+# 15.05
+# 1) For French bilinguals: interaction between word vs nonword and Lextale
+# Combine raw data with Lextale scores
+bilinguals_fr_lextale <- bilinguals_fr_lextale %>% rename(
+  Participant.Public.ID = "ID"
+)
+
+frenchbilinguals <- left_join(bilinguals_fr, bilinguals_fr_lextale, by = "Participant.Public.ID")
+
+frenchbi <- lmer(Reaction.Time ~ correct * score + (1 | Participant.Public.ID), data = frenchbilinguals)
+
+summary(frenchbi)
+```
+
+```{r}
+# Interaction plot
+sjPlot::plot_model(frenchbi, type = "pred", terms = c("correct", "score"), title = "French bilinguals", axis.title = c("Nonword vs word", "RT (ms)"), legend.title = "LexTALE score")
+```
+
+### 6.6 Outlier words
+```{r}
+# Spanish bilinguals
+bilinguals_sp %>%
+  filter(Reaction.Time >= (rt_df$Mean[1] + 10 * rt_df$SD[1])) %>%
+  pull(word, correct) %>%
+  table() %>% as.data.frame() -> outlier_words
+
+outlier_words$Source <- rep("bilinguals_sp", length(outlier_words))
+
+# Spanish monolinguals
+monolinguals_sp %>%
+  filter(Reaction.Time >= (rt_df$Mean[2] + 10 * rt_df$SD[2])) %>%
+  pull(word, correct) %>%
+  table() %>% as.data.frame() -> outlier_words1
+
+outlier_words1$Source <- rep("monolinguals_sp", length(outlier_words1))
+
+# French bilinguals
+bilinguals_fr %>%
+  filter(Reaction.Time >= (rt_df$Mean[3] + 10 * rt_df$SD[3])) %>%
+  pull(word, correct) %>%
+  table() %>% as.data.frame() -> outlier_words2
+
+outlier_words2$Source <- rep("bilinguals_fr", length(outlier_words2))
+
+# French monolinguals
+monolinguals_fr %>%
+  filter(Reaction.Time >= (rt_df$Mean[4] + 10 * rt_df$SD[4])) %>%
+  pull(word, correct) %>%
+  table() %>% as.data.frame() -> outlier_words3
+
+outlier_words3$Source <- rep("monolinguals_fr", 3)
+
+combine(outlier_words, outlier_words1, outlier_words2, outlier_words3) %>% select(-source) %>% kable() %>% kable_styling()
+```
